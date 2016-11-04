@@ -14,7 +14,7 @@ class OOSObjUtils
 {
     private $ossClient;
     private $bucket;
-    private $allowIP = ['139.139.139.139'];
+    private $allowIP = ['127.0.0.1'];
 
     public function __construct($ossClient, $bucket = 'shan-xun')
     {
@@ -28,8 +28,8 @@ class OOSObjUtils
      */
     private function checkAllowIP()
     {
-        $client_ip = get_client_ip();
-        if (in_array($client_ip, $this->allowIP)) {
+        $_ip = gethostbyname($_SERVER["SERVER_NAME"]);
+        if (in_array($_ip, $this->allowIP)) {
             return true;
         }
         return false;
