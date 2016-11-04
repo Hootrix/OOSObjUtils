@@ -8,15 +8,45 @@
  * Date: 2016/10/15
  * Time: 16:54
  */
+use think\Config;//载入使用TP框架的Config
+
 class OOSObjUtils
 {
     private $ossClient;
     private $bucket;
+    private $allowIP = ['139.139.139.139'];
 
     public function __construct($ossClient, $bucket = 'shan-xun')
     {
-        $this->ossClient = $ossClient;
+        $this->initTP($ossClient);
         $this->bucket = $bucket;
+    }
+
+    /**
+     * 检查是否本地操作
+     * 只有在 服务器环境ip才执行删除oss文件操作
+     */
+    private function checkAllowIP()
+    {
+        $client_ip = get_client_ip();
+        if (in_array($client_ip, $this->allowIP)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 传入'TP'字符传就载入TP的配置文件
+     *
+     * @param $ossClient
+     */
+    private function initTP($ossClient)
+    {
+        if (is_string($ossClient) && $ossClient == 'TP') {//若是任意String 则调用TP框架自带的方法
+            $this->ossClient = new \OSS\OssClient(Config::get('OSS_ACCESS_ID'), Config::get('OSS_ACCESS_KEY'), Config::get('OSS_ENDPOINT'), false);
+        } else {
+            $this->ossClient = $ossClient;
+        }
     }
 
     /**
@@ -35,12 +65,14 @@ class OOSObjUtils
      */
     public function del($objName)
     {
-        if (is_array($objName)) {
-            $action = 'deleteObjects';
-        } else {
-            $action = 'deleteObject';
+        if ($this->checkAllowIP()) {
+            if (is_array($objName)) {
+                $action = 'deleteObjects';
+            } else {
+                $action = 'deleteObject';
+            }
+            return $this->ossClient->{$action}($this->bucket, $objName);
         }
-        return $this->ossClient->{$action}($this->bucket, $objName);
     }
 
     /**
@@ -226,23 +258,25 @@ class OOSObjUtils
      */
     public function rmrf($dir = 'dd/')
     {
-        if (strlen($dir) === 0) {
-            throw  new Exception('strlen($dir) === 0');
-        }
+        if ($this->checkAllowIP()) {
+            if (strlen($dir) === 0) {
+                throw  new Exception('strlen($dir) === 0');
+            }
 
-        if ($this->isDir($dir)) {
-            $ls = $this->ls($dir);
-            foreach ($ls as $item) {
-                try {
-                    $name = $item->getPrefix();
-                } catch (Error $e) {
-                    $name = $item->getKey();
-                }
-                if ($name != $dir) {//排除自身目录名
-                    $this->delDir($name);
+            if ($this->isDir($dir)) {
+                $ls = $this->ls($dir);
+                foreach ($ls as $item) {
+                    try {
+                        $name = $item->getPrefix();
+                    } catch (Error $e) {
+                        $name = $item->getKey();
+                    }
+                    if ($name != $dir) {//排除自身目录名
+                        $this->delDir($name);
+                    }
                 }
             }
+            $this->del($dir);
         }
-        $this->del($dir);
     }
 }
